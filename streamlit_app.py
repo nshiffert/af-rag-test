@@ -26,7 +26,7 @@ def transform_video_name(name: str) -> str:
 st.title("Video Training Assistant")
 
 # Input widget for the user's question
-question = st.text_input("Enter your question:")
+question = st.text_input("Enter your question:","How long should I set my backups during an auction?")
 
 if st.button("Search"):
     if question:
