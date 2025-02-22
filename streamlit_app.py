@@ -1,56 +1,63 @@
+# streamlit_app.py
+
 import streamlit as st
-from openai import OpenAI
+import streamlit.components.v1 as components
+from backend import get_embedding, search_video_segments
+import datetime
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+def transform_video_url(url: str) -> str:
+    """
+    Modify the Google Drive URL to use the embed-friendly 'preview' mode.
+    """
+    if "drive.google.com" in url:
+        return url.replace("view", "preview")
+    return url
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+def transform_video_name(name: str) -> str:
+    """
+    Convert a hyphenated video name into a cleaner format by replacing hyphens with spaces
+    and removing file extensions.
+    """
+    name = name.replace("-", " ")
+    if "." in name:
+        name = name.split('.')[0]
+    return name
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+st.title("Video Training Assistant")
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+# Input widget for the user's question
+question = st.text_input("Enter your question:")
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+if st.button("Search"):
+    if question:
+        with st.spinner("Processing your query..."):
+            # Get embedding from OpenAI
+            embedding = get_embedding(question)
+            # Query Pinecone for matching video segments
+            results = search_video_segments(embedding)
+        
+        if results:
+            st.write("### Results:")
+            for res in results:
+                meta = res.get("metadata", {})
+                content_text = meta.get("textContent", "No content text provided.")
+                video_url = meta.get("url", "")
+                video_created = meta.get("videoCreated", "Unknown date")
+                video_duration = meta.get("videoDuration", "Unknown duration")
+                video_name = meta.get("videoName", "Unnamed Video")
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+                # Clean up the video URL and name
+                video_url = transform_video_url(video_url)
+                video_name = transform_video_name(video_name)
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+                # Display result details
+                st.markdown(f"#### {video_name}")
+                st.write(f"**Created:** {video_created} | **Duration:** {video_duration}")
+                st.write(content_text)
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
-
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+                # Display embedded video using Streamlit's iframe component
+                components.iframe(video_url, width=300, height=300, scrolling=False)
+        else:
+            st.write("No results found for your query.")
+    else:
+        st.warning("Please enter a question before searching.")
