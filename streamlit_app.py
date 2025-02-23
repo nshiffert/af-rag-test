@@ -10,6 +10,7 @@ import openai
 openai.api_key = st.secrets["general"]["OPENAI_API_KEY"]
 
 FULL_PROMPT_GLOBAL = ""
+VIDEO_MAP = {}
 
 # Utility functions for video URL/name formatting.
 def transform_video_url(url: str) -> str:
@@ -90,7 +91,7 @@ st.title("Talk to your Training Videos")
 
 # --- User Input Processing ---
 with st.form(key="input_form"):
-    user_input = st.text_input("Enter your question or message:")
+    user_input = st.text_input("Enter your question or message:","how do I create invoices?")
     submit_button = st.form_submit_button(label="Send")
 
 if st.button("Clear Conversation"):
@@ -117,11 +118,14 @@ if submit_button and user_input:
             for res in filtered_results:
                 meta = res.get("metadata", {})
                 text_content = meta.get("textContent", "")
+                video_summary = meta.get("summary","")
                 video_url = transform_video_url(meta.get("url", ""))
                 video_name = transform_video_name(meta.get("videoName", "Unnamed Video"))
                 score = res.get("score", "")
                 line = f"Video: {video_name}\nScore: {score}\nContent: {text_content}\nLink: {video_url}"
                 video_context_lines.append(line)
+                VIDEO_MAP[video_url] = video_summary
+
             video_context = "\n\n".join(video_context_lines)
         else:
             video_context = "No relevant video segments were found."
@@ -153,3 +157,5 @@ for sender, message in st.session_state.chat_history:
         video_urls = extract_video_urls(message)
         for url in video_urls:
             components.iframe(url, width=300, height=300, scrolling=False)
+            if(url in VIDEO_MAP):
+                st.markdown(f"**Summary:** {VIDEO_MAP[url]}")
