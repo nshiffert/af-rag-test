@@ -35,3 +35,11 @@ def search_video_segments(embedding: list, top_k: int = 5):
     """
     query_response = index.query(vector=embedding, top_k=top_k, include_metadata=True)
     return query_response["matches"]
+
+# python -c 'import backend; print(backend.delete_all_pinecone_vectors())'
+def delete_all_pinecone_vectors():
+
+    # Delete all vectors
+    index.delete(delete_all=True)
+
+    print("All vectors deleted successfully.")
